@@ -75,8 +75,9 @@ class MarkdownReader {
         
         // Parse and render markdown
         let html;
-        if (typeof marked !== 'undefined' && marked.parse) {
-            html = marked.parse(text);
+        if (typeof marked !== 'undefined') {
+            // Try modern API first (v4+), fall back to legacy API
+            html = marked.parse ? marked.parse(text) : marked(text);
         } else {
             // Fallback: use simple markdown parsing
             html = this.simpleMarkdownParse(text);
