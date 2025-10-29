@@ -153,35 +153,83 @@ class MarkdownReader {
     }
 
     saveToRecentFiles(filename, content) {
-        // Remove duplicate if exists
-        this.recentFilesData = this.recentFilesData.filter(f => f.name !== filename);
+        // Remove duplicate if exists and clean up its content
+        const existingIndex = this.recentFilesData.findIndex(f => f.name === filename);
+        if (existingIndex !== -1) {
+            const oldContentIndex = this.recentFilesData[existingIndex].contentIndex;
+            if (oldContentIndex !== undefined) {
+                localStorage.removeItem(`mdreader_content_${oldContentIndex}`);
+            }
+            this.recentFilesData = this.recentFilesData.filter(f => f.name !== filename);
+        }
         
-        // Add to beginning of array with content
+        // Generate a unique content index based on timestamp
+        const contentIndex = Date.now();
+        
+        // Save content separately with its own key
+        try {
+            localStorage.setItem(`mdreader_content_${contentIndex}`, content);
+        } catch (error) {
+            console.error('Error saving file content:', error);
+            // If storage quota exceeded, try to clean up old content
+            if (error.name === 'QuotaExceededError') {
+                this.cleanupOldContent(5);
+                try {
+                    localStorage.setItem(`mdreader_content_${contentIndex}`, content);
+                } catch (e) {
+                    console.error('Still cannot save content after cleanup:', e);
+                    alert('Storage quota exceeded. Please clear some recent files.');
+                    return;
+                }
+            } else {
+                return;
+            }
+        }
+        
+        // Add to beginning of array with content index reference
         this.recentFilesData.unshift({
             name: filename,
-            content: content,
+            contentIndex: contentIndex,
             timestamp: Date.now()
         });
         
         // Keep only last 10 files
-        this.recentFilesData = this.recentFilesData.slice(0, 10);
+        const removedFiles = this.recentFilesData.splice(10);
+        // Clean up content for removed files
+        removedFiles.forEach(file => {
+            if (file.contentIndex !== undefined) {
+                localStorage.removeItem(`mdreader_content_${file.contentIndex}`);
+            }
+        });
         
-        // Save to localStorage
+        // Save metadata to localStorage
         try {
             localStorage.setItem('recentFiles', JSON.stringify(this.recentFilesData));
             this.displayRecentFiles();
         } catch (error) {
-            console.error('Error saving recent files:', error);
-            // If storage quota exceeded, try removing oldest files
-            if (error.name === 'QuotaExceededError') {
-                this.recentFilesData = this.recentFilesData.slice(0, 5);
-                try {
-                    localStorage.setItem('recentFiles', JSON.stringify(this.recentFilesData));
-                    this.displayRecentFiles();
-                } catch (e) {
-                    console.error('Still cannot save after reducing files:', e);
+            console.error('Error saving recent files metadata:', error);
+        }
+    }
+
+    cleanupOldContent(keepCount) {
+        // Keep only the most recent N files and remove older content
+        if (this.recentFilesData.length > keepCount) {
+            const toRemove = this.recentFilesData.splice(keepCount);
+            toRemove.forEach(file => {
+                if (file.contentIndex !== undefined) {
+                    localStorage.removeItem(`mdreader_content_${file.contentIndex}`);
                 }
-            }
+            });
+            localStorage.setItem('recentFiles', JSON.stringify(this.recentFilesData));
+        }
+    }
+
+    loadFileContent(contentIndex) {
+        try {
+            return localStorage.getItem(`mdreader_content_${contentIndex}`);
+        } catch (error) {
+            console.error('Error loading file content:', error);
+            return null;
         }
     }
 
@@ -242,10 +290,16 @@ class MarkdownReader {
             
             // Click on file to load cached content
             li.onclick = () => {
-                if (file.content) {
-                    this.displayMarkdown(file.content, file.name);
+                // Load content from separate localStorage entry
+                if (file.contentIndex !== undefined) {
+                    const content = this.loadFileContent(file.contentIndex);
+                    if (content) {
+                        this.displayMarkdown(content, file.name);
+                    } else {
+                        alert(`Content not found for "${file.name}".\n\nPlease use "Update" button to reload the file.`);
+                    }
                 } else {
-                    alert(`No cached content for "${file.name}".\n\nPlease use "Update" button to reload the file.`);
+                    alert(`No content index for "${file.name}".\n\nPlease use "Update" button to reload the file.`);
                 }
             };
             
@@ -277,6 +331,12 @@ class MarkdownReader {
     }
 
     removeRecentFile(index) {
+        const file = this.recentFilesData[index];
+        // Remove content from localStorage
+        if (file && file.contentIndex !== undefined) {
+            localStorage.removeItem(`mdreader_content_${file.contentIndex}`);
+        }
+        // Remove from array
         this.recentFilesData.splice(index, 1);
         localStorage.setItem('recentFiles', JSON.stringify(this.recentFilesData));
         this.displayRecentFiles();
@@ -284,6 +344,13 @@ class MarkdownReader {
 
     clearHistory() {
         if (confirm('Are you sure you want to clear all recent files?')) {
+            // Remove all content entries
+            this.recentFilesData.forEach(file => {
+                if (file.contentIndex !== undefined) {
+                    localStorage.removeItem(`mdreader_content_${file.contentIndex}`);
+                }
+            });
+            // Clear metadata
             this.recentFilesData = [];
             localStorage.removeItem('recentFiles');
             this.displayRecentFiles();
