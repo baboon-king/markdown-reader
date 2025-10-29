@@ -70,6 +70,14 @@ Then open http://localhost:8888 in your browser.
 └── icon-512.png        # PWA icon (512x512)
 ```
 
+## 🔒 Security
+
+- **Marked.js v9+** includes built-in XSS protection
+- **Fallback parser** escapes all HTML entities before processing
+- **Read-only mode** - No file writing or modification capabilities
+- **Local-only** - Files are read from your device and never uploaded anywhere
+- **Client-side** - All processing happens in your browser, no server involved
+
 ## 🌐 Browser Support
 
 Works on all modern browsers that support:

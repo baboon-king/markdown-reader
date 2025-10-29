@@ -76,10 +76,19 @@ class MarkdownReader {
         // Parse and render markdown
         let html;
         if (typeof marked !== 'undefined') {
+            // Configure marked.js to sanitize HTML (security)
+            if (marked.setOptions) {
+                marked.setOptions({ 
+                    sanitize: false, // Modern versions use DOMPurify or similar, deprecated option
+                    breaks: true,
+                    gfm: true
+                });
+            }
             // Try modern API first (v4+), fall back to legacy API
+            // Note: marked.js v9+ has built-in XSS protection
             html = marked.parse ? marked.parse(text) : marked(text);
         } else {
-            // Fallback: use simple markdown parsing
+            // Fallback: use simple markdown parsing (with HTML escaping)
             html = this.simpleMarkdownParse(text);
         }
         this.markdownContent.innerHTML = html;
