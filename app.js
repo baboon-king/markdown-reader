@@ -54,7 +54,7 @@ class MarkdownReader {
         try {
             const text = await file.text();
             this.displayMarkdown(text, file.name);
-            this.saveToRecentFiles(file.name);
+            this.saveToRecentFiles(file.name, text);
             
             // Reset file input so the same file can be selected again
             this.fileInput.value = '';
@@ -152,13 +152,14 @@ class MarkdownReader {
         }
     }
 
-    saveToRecentFiles(filename) {
+    saveToRecentFiles(filename, content) {
         // Remove duplicate if exists
         this.recentFilesData = this.recentFilesData.filter(f => f.name !== filename);
         
-        // Add to beginning of array
+        // Add to beginning of array with content
         this.recentFilesData.unshift({
             name: filename,
+            content: content,
             timestamp: Date.now()
         });
         
@@ -171,6 +172,16 @@ class MarkdownReader {
             this.displayRecentFiles();
         } catch (error) {
             console.error('Error saving recent files:', error);
+            // If storage quota exceeded, try removing oldest files
+            if (error.name === 'QuotaExceededError') {
+                this.recentFilesData = this.recentFilesData.slice(0, 5);
+                try {
+                    localStorage.setItem('recentFiles', JSON.stringify(this.recentFilesData));
+                    this.displayRecentFiles();
+                } catch (e) {
+                    console.error('Still cannot save after reducing files:', e);
+                }
+            }
         }
     }
 
@@ -200,6 +211,21 @@ class MarkdownReader {
             fileInfo.appendChild(fileName);
             fileInfo.appendChild(fileDate);
             
+            // Create button container
+            const buttonContainer = document.createElement('div');
+            buttonContainer.className = 'file-buttons';
+            
+            // Add Update button
+            const updateBtn = document.createElement('button');
+            updateBtn.className = 'update-file';
+            updateBtn.textContent = '🔄 Update';
+            updateBtn.title = 'Reload latest version';
+            updateBtn.onclick = (e) => {
+                e.stopPropagation();
+                this.updateRecentFile(index, file.name);
+            };
+            
+            // Add Remove button
             const removeBtn = document.createElement('button');
             removeBtn.className = 'remove-file';
             removeBtn.textContent = 'Remove';
@@ -208,17 +234,46 @@ class MarkdownReader {
                 this.removeRecentFile(index);
             };
             
-            li.appendChild(fileInfo);
-            li.appendChild(removeBtn);
+            buttonContainer.appendChild(updateBtn);
+            buttonContainer.appendChild(removeBtn);
             
-            // Note: We can't actually reopen the file from history due to browser security
-            // But we keep the list as a reference for users
+            li.appendChild(fileInfo);
+            li.appendChild(buttonContainer);
+            
+            // Click on file to load cached content
             li.onclick = () => {
-                alert(`Please use "Open File" button to select "${file.name}" again.\n\nFor security reasons, browsers don't allow automatic access to previously opened files.`);
+                if (file.content) {
+                    this.displayMarkdown(file.content, file.name);
+                } else {
+                    alert(`No cached content for "${file.name}".\n\nPlease use "Update" button to reload the file.`);
+                }
             };
             
             this.recentFilesList.appendChild(li);
         });
+    }
+
+    updateRecentFile(index, filename) {
+        // Trigger file picker to update this specific file
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.md,.markdown,.txt';
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (file && file.name === filename) {
+                try {
+                    const text = await file.text();
+                    this.displayMarkdown(text, file.name);
+                    this.saveToRecentFiles(file.name, text);
+                } catch (error) {
+                    console.error('Error updating file:', error);
+                    alert('Error updating file. Please try again.');
+                }
+            } else if (file) {
+                alert(`Please select the same file: ${filename}`);
+            }
+        };
+        input.click();
     }
 
     removeRecentFile(index) {

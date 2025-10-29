@@ -175,6 +175,26 @@ header h1 {
     margin-left: 10px;
 }
 
+.file-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.update-file {
+    background: #27ae60;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+
+.update-file:hover {
+    background: #229954;
+}
+
 .remove-file {
     background: #e74c3c;
     color: white;
@@ -391,6 +411,11 @@ header h1 {
 
     .file-date {
         margin-left: 0;
+    }
+
+    .file-buttons {
+        width: 100%;
+        justify-content: flex-start;
     }
 }
 
